@@ -8,7 +8,7 @@ The node can also be used as a tool by the n8n AI Agent.
 
 ## Installation
 
-In n8n, open **Settings > Community Nodes**, select **Install**, enter `n8n-nodes-trawl` and confirm.
+On self-hosted n8n, open **Settings > Community Nodes**, select **Install**, enter `n8n-nodes-trawl` and confirm. On n8n Cloud, community nodes can be installed only once n8n has verified the node.
 
 See the n8n guide: [Install community nodes](https://docs.n8n.io/integrations/community-nodes/installation/).
 

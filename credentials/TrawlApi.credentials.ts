@@ -47,7 +47,7 @@ export class TrawlApi implements ICredentialType {
 	// GET /api/scraps accepts an API key (trawl:scraps:read) and is cheap with perPage=1.
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{$credentials.baseUrl.replace(/\\/+$/, "")}}',
+			baseURL: '={{($credentials.baseUrl || "https://api.trawl.me").replace(/\\/+$/, "")}}',
 			url: '/api/scraps',
 			method: 'GET',
 			qs: { perPage: 1, page: 1 },

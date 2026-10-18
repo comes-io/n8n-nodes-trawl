@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, IHttpRequestOptions, ILoadOptionsFunctions } from 'n8n-workflow';
-import { NodeApiError, NodeOperationError } from 'n8n-workflow';
+import { Expression, NodeApiError, NodeOperationError, Workflow } from 'n8n-workflow';
 import { describe, expect, it } from 'vitest';
 import { TrawlApi } from '../credentials/TrawlApi.credentials';
 import { Trawl } from '../nodes/Trawl/Trawl.node';
@@ -68,6 +68,23 @@ describe('Trawl API credential', () => {
 		expect(credential.test.request).toMatchObject({ url: '/api/scraps', method: 'GET' });
 		const baseUrl = credential.properties.find((p) => p.name === 'baseUrl');
 		expect(baseUrl?.default).toBe('https://api.trawl.me');
+	});
+
+	it('tests against the default URL when baseUrl is empty and strips trailing slashes', () => {
+		const expression = new TrawlApi().test.request.baseURL as string;
+		expect(expression).toMatch(/^=\{\{.*\}\}$/);
+		const workflow = new Workflow({
+			nodes: [],
+			connections: {},
+			active: false,
+			nodeTypes: { getByName: () => undefined, getByNameAndVersion: () => undefined } as never,
+		});
+		const evaluate = (baseUrl: string) =>
+			new Expression(workflow).resolveSimpleParameterValue(expression, {
+				$credentials: { baseUrl },
+			} as never) as string;
+		expect(evaluate('')).toBe('https://api.trawl.me');
+		expect(evaluate('https://api.example.test//')).toBe('https://api.example.test');
 	});
 });
 

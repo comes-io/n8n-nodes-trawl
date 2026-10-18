@@ -27,6 +27,8 @@
 #        Repository name:  <your-repo-name>
 #        Workflow name:    publish.yml
 #        Environment:      (leave blank unless you use GitHub Environments)
+#      In the trusted-publisher settings, allow direct `npm publish`. New
+#      trusted publishers default to staged publishing, and the release fails.
 #   4. Leave the NPM_TOKEN secret unset in this repository. GitHub's OIDC
 #      token is used instead — no secret ever touches your repo settings.
 #
@@ -88,6 +90,15 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Check tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
+            exit 1
+          fi
 
       - name: Release
         # Publishes to npm with a provenance attestation (requires id-token: write above).
