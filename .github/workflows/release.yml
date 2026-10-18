@@ -11,14 +11,18 @@ name: Release
 # npm Trusted Publishing (OIDC, no npm token) with a provenance attestation,
 # which n8n requires for community-node verification.
 #
-# One-time setup (human, before the first release):
-# - GitHub environment `prod`, deployment branches limited to `main`, holding
-#   the TRAWL_RELEASE secret (PAT that pushes the tag).
-# - npm only accepts a trusted publisher on an existing package: bootstrap the
-#   first version with a one-off token publish to the `next` tag, then register
-#   the trusted publisher (workflow `release.yml`, environment `prod`) and allow
-#   direct publishing (a new trusted publisher defaults to staged publishing,
-#   which makes this job fail).
+# One-time setup (human, BEFORE merging the first change after this file):
+# - GitHub environment `prod`: deployment branches limited to `main`, no
+#   required reviewers (the human gate is promote.yml), holding the
+#   TRAWL_RELEASE secret (PAT that pushes the tag).
+# - npm only accepts a trusted publisher on an existing package. Bootstrap it
+#   once from main, the only hand publish ever: `RELEASE_MODE=true npm publish
+#   --tag next` (package.json's 0.1.0, no provenance), then tag that commit
+#   `v0.1.0` and push the tag so semantic-release continues from 0.1.0. Never
+#   hand-publish a version CI will produce: npm versions cannot be reused.
+# - Then register the trusted publisher (workflow `release.yml`, environment
+#   `prod`) and allow direct publishing (a new trusted publisher defaults to
+#   staged publishing, which makes this job fail).
 on:
   push:
     branches: [main]
@@ -32,8 +36,9 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# Tags and the GitHub release go through the TRAWL_RELEASE token, not this one.
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
@@ -106,11 +111,13 @@ jobs:
       - name: Check whether that version is already on npm
         id: npm_check
         if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         # Only a genuine E404 means "never published"; any other npm error fails
         # the step instead of guessing.
         run: |
           set +e
-          output="$(npm view "n8n-nodes-trawl@${{ steps.version.outputs.version }}" version 2>&1)"
+          output="$(npm view "n8n-nodes-trawl@$VERSION" version 2>&1)"
           status=$?
           set -e
           if [ "$status" -eq 0 ]; then
@@ -126,6 +133,7 @@ jobs:
       - name: Publish to npm via OIDC (next channel)
         if: steps.version.outputs.version != '' && steps.npm_check.outputs.published != 'true'
         env:
+          VERSION: ${{ steps.version.outputs.version }}
           # package.json's prepublishOnly (n8n-node prerelease) blocks a bare
           # `npm publish` unless RELEASE_MODE is set; lint/build/test already
           # ran above.
@@ -134,5 +142,5 @@ jobs:
           # npm Trusted Publishing (token-less OIDC) requires npm >= 11.5.1;
           # Node 22 ships npm 10.x, which fails with ENEEDAUTH on publish.
           npm install -g npm@latest
-          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version
           npm publish --provenance --access public --tag next
