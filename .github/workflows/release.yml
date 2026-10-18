@@ -10,6 +10,15 @@ name: Release
 # tested BEFORE semantic-release so a red tree never gets a tag. The publish is
 # npm Trusted Publishing (OIDC, no npm token) with a provenance attestation,
 # which n8n requires for community-node verification.
+#
+# One-time setup (human, before the first release):
+# - GitHub environment `prod`, deployment branches limited to `main`, holding
+#   the TRAWL_RELEASE secret (PAT that pushes the tag).
+# - npm only accepts a trusted publisher on an existing package: bootstrap the
+#   first version with a one-off token publish to the `next` tag, then register
+#   the trusted publisher (workflow `release.yml`, environment `prod`) and allow
+#   direct publishing (a new trusted publisher defaults to staged publishing,
+#   which makes this job fail).
 on:
   push:
     branches: [main]
@@ -30,10 +39,21 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # A dispatch from another branch must never publish that branch's code.
+    if: github.ref == 'refs/heads/main'
     environment: prod
     timeout-minutes: 15
 
     steps:
+      - name: Preflight — release secret present
+        env:
+          TRAWL_RELEASE: ${{ secrets.TRAWL_RELEASE }}
+        run: |
+          if [ -z "$TRAWL_RELEASE" ]; then
+            echo "::error::TRAWL_RELEASE is not set on the prod environment (see the one-time setup in this file's header)."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -64,14 +84,22 @@ jobs:
 
       # Re-run trap: if semantic-release tagged a version on a prior run but the
       # npm publish failed, a re-run sees nothing new to release. Fall back to
-      # the latest reachable tag so the publish step still gets its chance.
+      # a tag that points at HEAD, so the publish still gets its chance. Only
+      # HEAD's own tag: an older tag would publish newer code under its number.
       - name: Resolve release version to verify against npm
         id: version
+        env:
+          PUBLISHED: ${{ steps.semantic.outputs.new_release_published }}
+          NEW_VERSION: ${{ steps.semantic.outputs.new_release_version }}
         run: |
-          if [ "${{ steps.semantic.outputs.new_release_published }}" = "true" ]; then
-            version="${{ steps.semantic.outputs.new_release_version }}"
+          if [ "$PUBLISHED" = "true" ]; then
+            version="$NEW_VERSION"
           else
-            version="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//')"
+            version="$(git describe --tags --exact-match --match 'v*' HEAD 2>/dev/null | sed 's/^v//')"
+          fi
+          if [ -n "$version" ] && ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Release version '$version' is not X.Y.Z; refusing to publish."
+            exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -106,5 +134,5 @@ jobs:
           # npm Trusted Publishing (token-less OIDC) requires npm >= 11.5.1;
           # Node 22 ships npm 10.x, which fails with ENEEDAUTH on publish.
           npm install -g npm@latest
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
           npm publish --provenance --access public --tag next
