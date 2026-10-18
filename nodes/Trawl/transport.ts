@@ -8,7 +8,7 @@ import type {
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
 
-export const DEFAULT_BASE_URL = 'https://api.trawl.me';
+const DEFAULT_BASE_URL = 'https://api.trawl.me';
 
 /**
  * A run executes server-side and can take 30-250 s (browser navigation, anti-bot

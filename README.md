@@ -27,6 +27,7 @@ Scopes the key needs, by operation:
 
 | Operation | Scope |
 | --- | --- |
+| Credential test and the "From List" scrap picker | `trawl:scraps:read` |
 | Get Many | `trawl:scraps:read` |
 | Run | `trawl:scraps:run` |
 | Get Latest Result | `trawl:scraps:read` and `trawl:history:read` |
@@ -45,7 +46,7 @@ Resource **Scrap**:
 
 Pick the scrap from a searchable list, or paste its ID (24 hex characters).
 
-**Get Latest Result** fails with a clear message when the scrap has never run, when a run is still in progress, when the last run failed, or when the stored data of the last run has aged out. A successful run with zero rows outputs nothing. Turn on **Continue On Fail** to get the error as an item instead.
+**Get Latest Result** fails with a clear message when the scrap has never run, when a run is still in progress, when the last run failed, or when the stored data of the last run has aged out. A successful run with zero rows outputs nothing, and so does **Run** with zero rows: n8n ends the branch there, so for scheduled flows turn on the node setting **Always Output Data**. Turn on **Continue On Fail** to get the error as an item instead.
 
 ## Example workflow
 

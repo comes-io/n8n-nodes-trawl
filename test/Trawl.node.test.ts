@@ -100,6 +100,21 @@ describe('Get Many', () => {
 	});
 });
 
+describe('Get Many limit above the page cap', () => {
+	it('caps perPage at 200 and fetches a second page', async () => {
+		const full = Array.from({ length: 200 }, (_, i) => ({ _id: String(i) }));
+		const { json, calls } = await execute(
+			{ operation: 'getAll', returnAll: false, limit: 250 },
+			[envelope(full), envelope(full)],
+		);
+		expect(calls.map((c) => c.options.qs)).toEqual([
+			{ perPage: 200, page: 1 },
+			{ perPage: 200, page: 2 },
+		]);
+		expect(json).toHaveLength(250);
+	});
+});
+
 describe('Run', () => {
 	it('waits by default: GET /api/scraps/load/:id with the long timeout, one item per row', async () => {
 		const { json, calls } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
@@ -111,6 +126,18 @@ describe('Run', () => {
 			timeout: 300_000,
 		});
 		expect(json).toEqual([{ price: 1 }, { value: 'plain' }]);
+	});
+
+	it.each([
+		['null', null, []],
+		['undefined', undefined, []],
+		['an object', { price: 1 }, [{ price: 1 }]],
+		['a string', 'plain', [{ value: 'plain' }]],
+	])('never emits the envelope when data is %s', async (_label, data, expected) => {
+		const { json } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
+			envelope({ result: { type: 'success', data }, digest: null, scrap: { script: 'secret' } }),
+		]);
+		expect(json).toEqual(expected);
 	});
 
 	it('without waiting: POST /api/scraps/worker/:id?wait=false and outputs the queued ack', async () => {
@@ -132,6 +159,15 @@ describe('Run', () => {
 		await expect(promise).rejects.toThrow(NodeOperationError);
 		await expect(promise).rejects.toThrow(/not a valid scrap ID/);
 	});
+
+	it.each([[123], [undefined], [null]])(
+		'gives the clear id error for a non-string ID (%s)',
+		async (scrapId) => {
+			const promise = execute({ operation: 'run', scrapId }, []);
+			await expect(promise).rejects.toThrow(NodeOperationError);
+			await expect(promise).rejects.toThrow(/not a valid scrap ID/);
+		},
+	);
 });
 
 describe('Get Latest Result', () => {
@@ -183,6 +219,28 @@ describe('Get Latest Result', () => {
 			expect(calls).toHaveLength(1);
 		},
 	);
+
+	it('rejects a hostile run id from the API before requesting it', async () => {
+		const { context, calls } = makeContext(
+			{ resource: 'scrap', operation: 'getLatestResult', scrapId: SCRAP_ID },
+			[envelope({ _id: SCRAP_ID, history: [{ _id: '../admin', status: true }] })],
+		);
+		await expect(
+			new Trawl().execute.call(context as unknown as IExecuteFunctions),
+		).rejects.toThrow(/invalid run ID/);
+		expect(calls).toHaveLength(1);
+	});
+
+	it.each([
+		['an object', { a: 1 }, [{ a: 1 }]],
+		['a string', 'text', [{ value: 'text' }]],
+	])('outputs one row when the stored data is %s', async (_label, data, expected) => {
+		const { json } = await execute({ operation: 'getLatestResult', scrapId: SCRAP_ID }, [
+			scrapWith({ status: true, statusDetail: 'success' }),
+			envelope({ data: JSON.stringify({ data }) }),
+		]);
+		expect(json).toEqual(expected);
+	});
 
 	it('fails when the stored payload aged out', async () => {
 		await expect(

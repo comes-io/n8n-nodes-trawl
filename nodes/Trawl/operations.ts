@@ -27,15 +27,31 @@ interface Scrap {
 }
 
 /** A scrap id goes into the URL path, so only a Mongo ObjectId is accepted. */
-function assertScrapId(node: INode, scrapId: string): string {
-	const id = scrapId.trim();
+function assertScrapId(node: INode, scrapId: unknown): string {
+	const raw = String(scrapId ?? '');
+	const id = raw.trim();
 	if (!OBJECT_ID.test(id)) {
 		throw new NodeOperationError(
 			node,
-			`"${scrapId}" is not a valid scrap ID (expected 24 hex characters)`,
+			`"${raw}" is not a valid scrap ID (expected 24 hex characters)`,
 		);
 	}
 	return id;
+}
+
+/** The run id comes from the API response; it goes into a URL path, so same check. */
+function assertRunId(node: INode, runId: unknown): string {
+	const id = String(runId ?? '');
+	if (!OBJECT_ID.test(id)) {
+		throw new NodeOperationError(node, `The API returned an invalid run ID "${id}"`);
+	}
+	return id;
+}
+
+/** Scraped data to rows: an array is one row per entry, a lone value is one row, null is none. */
+function dataToRows(data: unknown): IDataObject[] {
+	if (data === null || data === undefined) return [];
+	return toJsonRows(Array.isArray(data) ? data : [data]);
 }
 
 /** Each scraped row becomes one n8n item; a non-object row is wrapped as { value }. */
@@ -77,7 +93,7 @@ export async function listScraps(
  */
 export async function runScrap(
 	this: IExecuteFunctions,
-	scrapId: string,
+	scrapId: unknown,
 	wait: boolean,
 ): Promise<IDataObject[]> {
 	const id = assertScrapId(this.getNode(), scrapId);
@@ -95,8 +111,7 @@ export async function runScrap(
 		{},
 		LONG_RUN_TIMEOUT_MS,
 	)) as { result?: { data?: unknown } };
-	const rows = run?.result?.data;
-	return Array.isArray(rows) ? toJsonRows(rows) : [run as IDataObject];
+	return dataToRows(run?.result?.data);
 }
 
 /**
@@ -105,7 +120,7 @@ export async function runScrap(
  */
 export async function getLatestResult(
 	this: IExecuteFunctions,
-	scrapId: string,
+	scrapId: unknown,
 ): Promise<IDataObject[]> {
 	const id = assertScrapId(this.getNode(), scrapId);
 	const scrap = (await trawlApiRequest.call(this, 'GET', `/api/scraps/${id}`)) as Scrap;
@@ -128,7 +143,8 @@ export async function getLatestResult(
 		);
 	}
 
-	const run = (await trawlApiRequest.call(this, 'GET', `/api/historys/${last._id}`)) as {
+	const runId = assertRunId(this.getNode(), last._id);
+	const run = (await trawlApiRequest.call(this, 'GET', `/api/historys/${runId}`)) as {
 		data?: string | null;
 	};
 	let rows: unknown;
@@ -142,7 +158,7 @@ export async function getLatestResult(
 			);
 		}
 	}
-	if (Array.isArray(rows)) return toJsonRows(rows);
+	if (rows !== null && rows !== undefined) return dataToRows(rows);
 	if (isEmptyRun) return [];
 	throw new NodeOperationError(
 		this.getNode(),
