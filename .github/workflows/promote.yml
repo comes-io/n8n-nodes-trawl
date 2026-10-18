@@ -1,0 +1,86 @@
+name: Promote
+
+# Promotes a published candidate from the npm `next` dist-tag to `latest`
+# (mirrors trawl_skills promote.yml), so a release needs no local `npm login`.
+# release.yml publishes to `next` via OIDC; this workflow moves `latest` with
+# the granular token NPM_PROMOTE_TOKEN (package n8n-nodes-trawl, never printed).
+# Run: gh workflow run promote.yml -R comes-io/n8n-nodes-trawl -f version=X.Y.Z
+# The token must be an npm granular token with write access on
+# n8n-nodes-trawl (unscoped package) and "bypass 2FA" enabled (else EOTP). It expires (<=90 days): rotate
+# it; an expired token shows as an npm 401/403 on the promote step.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version currently on the next tag to promote to latest (X.Y.Z)'
+        required: true
+        type: string
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 5
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check the promote token is set
+        env:
+          NPM_PROMOTE_TOKEN: ${{ secrets.NPM_PROMOTE_TOKEN }}
+        run: |
+          if [ -z "$NPM_PROMOTE_TOKEN" ]; then
+            echo "::error::secret NPM_PROMOTE_TOKEN is not set (npm granular token, n8n-nodes-trawl package)"; exit 1
+          fi
+
+      - name: Check the version is the next candidate
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be X.Y.Z, got '$VERSION'"; exit 1
+          fi
+          npm view "n8n-nodes-trawl@$VERSION" version >/dev/null \
+            || { echo "::error::n8n-nodes-trawl@$VERSION is not published"; exit 1; }
+          NEXT=$(npm view n8n-nodes-trawl dist-tags.next)
+          if [ "$NEXT" != "$VERSION" ]; then
+            echo "::error::next is '$NEXT', not '$VERSION' - only the current next candidate is promoted"; exit 1
+          fi
+
+      - name: Promote next to latest
+        env:
+          VERSION: ${{ inputs.version }}
+          NPM_PROMOTE_TOKEN: ${{ secrets.NPM_PROMOTE_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/.npmrc"' EXIT
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_PROMOTE_TOKEN" > "$RUNNER_TEMP/.npmrc"
+          npm dist-tag add "n8n-nodes-trawl@$VERSION" latest --userconfig "$RUNNER_TEMP/.npmrc"
+
+      - name: Verify latest
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          LATEST=""
+          for _ in 1 2 3 4 5; do
+            LATEST="$(npm view --prefer-online n8n-nodes-trawl dist-tags.latest || true)"
+            [[ "$LATEST" == "$VERSION" ]] && break
+            sleep 6
+          done
+          if [ "$LATEST" != "$VERSION" ]; then
+            echo "::error::latest is '$LATEST', expected '$VERSION'"; exit 1
+          fi
+          echo "latest -> $LATEST"
