@@ -99,7 +99,11 @@ npm test
 npm run dev   # starts a local n8n with the node loaded
 ```
 
-Releases are published from GitHub Actions on a version tag, with npm provenance (`.github/workflows/publish.yml`).
+Releases are automatic and published from GitHub Actions with npm provenance:
+
+- Every merge to `main` runs semantic-release (conventional commits), tags `vX.Y.Z` and publishes to the npm `next` tag (`.github/workflows/release.yml`). `latest` does not move.
+- To ship a version to users, run the `Promote` workflow with that version (`.github/workflows/promote.yml`): it moves `latest` to it.
+- Never run `npm publish` or `npm run release` by hand.
 
 ## Resources
 

@@ -1,0 +1,110 @@
+name: Release
+
+# Every merge to main publishes a CANDIDATE on the npm `next` dist-tag.
+# `latest` (bare `npm i n8n-nodes-trawl`, what n8n installs) does NOT move on
+# merge: promote it with promote.yml after QA. Same model as trawl_skills and
+# trawl_cli.
+#
+# semantic-release computes the version from the commits (.releaserc.json, same
+# releaseRules as trawl_skills) and tags vX.Y.Z. The package is built, linted and
+# tested BEFORE semantic-release so a red tree never gets a tag. The publish is
+# npm Trusted Publishing (OIDC, no npm token) with a provenance attestation,
+# which n8n requires for community-node verification.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.claude/**'
+  workflow_dispatch:
+
+# Two pushes in quick succession must never race semantic-release on the
+# same npm version/tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TRAWL_RELEASE }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.TRAWL_RELEASE }}
+
+      # Re-run trap: if semantic-release tagged a version on a prior run but the
+      # npm publish failed, a re-run sees nothing new to release. Fall back to
+      # the latest reachable tag so the publish step still gets its chance.
+      - name: Resolve release version to verify against npm
+        id: version
+        run: |
+          if [ "${{ steps.semantic.outputs.new_release_published }}" = "true" ]; then
+            version="${{ steps.semantic.outputs.new_release_version }}"
+          else
+            version="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//')"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether that version is already on npm
+        id: npm_check
+        if: steps.version.outputs.version != ''
+        # Only a genuine E404 means "never published"; any other npm error fails
+        # the step instead of guessing.
+        run: |
+          set +e
+          output="$(npm view "n8n-nodes-trawl@${{ steps.version.outputs.version }}" version 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          elif echo "$output" | grep -q 'E404'; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::npm view failed for a reason other than 'not found' (E404); refusing to guess."
+            echo "$output"
+            exit 1
+          fi
+
+      - name: Publish to npm via OIDC (next channel)
+        if: steps.version.outputs.version != '' && steps.npm_check.outputs.published != 'true'
+        env:
+          # package.json's prepublishOnly (n8n-node prerelease) blocks a bare
+          # `npm publish` unless RELEASE_MODE is set; lint/build/test already
+          # ran above.
+          RELEASE_MODE: 'true'
+        run: |
+          # npm Trusted Publishing (token-less OIDC) requires npm >= 11.5.1;
+          # Node 22 ships npm 10.x, which fails with ENEEDAUTH on publish.
+          npm install -g npm@latest
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          npm publish --provenance --access public --tag next
