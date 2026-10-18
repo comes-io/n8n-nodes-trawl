@@ -27,7 +27,7 @@ interface Scrap {
 }
 
 /** A scrap id goes into the URL path, so only a Mongo ObjectId is accepted. */
-export function assertScrapId(node: INode, scrapId: string): string {
+function assertScrapId(node: INode, scrapId: string): string {
 	const id = scrapId.trim();
 	if (!OBJECT_ID.test(id)) {
 		throw new NodeOperationError(
@@ -39,7 +39,7 @@ export function assertScrapId(node: INode, scrapId: string): string {
 }
 
 /** Each scraped row becomes one n8n item; a non-object row is wrapped as { value }. */
-export function toJsonRows(rows: unknown[]): IDataObject[] {
+function toJsonRows(rows: unknown[]): IDataObject[] {
 	return rows.map((row) =>
 		row !== null && typeof row === 'object' && !Array.isArray(row)
 			? (row as IDataObject)
@@ -119,9 +119,9 @@ export async function getLatestResult(
 			`A run is in progress for scrap ${id}. Retry shortly.`,
 		);
 
+	// An 'empty' run has no rows; a 'regression' run still holds real rows.
 	const isEmptyRun = last.status === false && last.statusDetail === 'empty';
-	const isRegression = last.status === false && last.statusDetail === 'regression';
-	if (last.status === false && !isEmptyRun && !isRegression) {
+	if (last.status === false && !isEmptyRun && last.statusDetail !== 'regression') {
 		throw new NodeOperationError(
 			this.getNode(),
 			`The last run of scrap ${id} failed. Check it in Trawl.`,
