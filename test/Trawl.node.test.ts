@@ -169,7 +169,7 @@ describe('Run', () => {
 			result: [
 				{
 					kind: 'site',
-					hotel: 'Example Hotel',
+					name: 'Example Item',
 					site: 'Example Site',
 					price: 96,
 					currency: 'EUR',
