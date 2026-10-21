@@ -88,7 +88,7 @@ export async function listScraps(
 
 /**
  * Per-call parameters: an object, or a string parsed as JSON (an empty string is
- * `{}`). Sent as the request body as given; the API maps each key to `TRAWL.<key>`.
+ * `{}`). Sent as the request body as given; the API requires the scrap's stored keys exactly (normally `TRAWL.<name>`).
  */
 function parseParameters(node: INode, raw: unknown): IDataObject {
 	let value = raw;
