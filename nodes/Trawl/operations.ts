@@ -87,31 +87,56 @@ export async function listScraps(
 }
 
 /**
- * Wait = true: GET /api/scraps/load/:id runs the scrap and answers with the
- * finished result (`trawl run`). Wait = false: POST /api/scraps/worker/:id?wait=false
- * queues the run and answers at once (`trawl trigger`).
+ * Per-call parameters: an object, or a string parsed as JSON (an empty string is
+ * `{}`). Sent as the request body as given; the API maps each key to `TRAWL.<key>`.
+ */
+function parseParameters(node: INode, raw: unknown): IDataObject {
+	let value = raw;
+	if (typeof raw === 'string') {
+		if (!raw.trim()) return {};
+		try {
+			value = JSON.parse(raw);
+		} catch {
+			throw new NodeOperationError(node, 'The "Parameters" field is not valid JSON');
+		}
+	}
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		throw new NodeOperationError(node, 'The "Parameters" field must be a JSON object');
+	}
+	return value as IDataObject;
+}
+
+/**
+ * POST /api/scraps/worker/:id with the parameters as the body. Wait = true: the
+ * call answers with the finished result (`trawl run`). Wait = false: `?wait=false`
+ * queues the run and answers at once (`trawl trigger`). Full Response: one item
+ * `{ statusCode, body }` with the raw API JSON, no throw on an HTTP error status.
  */
 export async function runScrap(
 	this: IExecuteFunctions,
 	scrapId: unknown,
-	wait: boolean,
+	options: { wait: boolean; parameters: unknown; fullResponse: boolean },
 ): Promise<IDataObject[]> {
-	const id = assertScrapId(this.getNode(), scrapId);
-	if (!wait) {
-		const ack = await trawlApiRequest.call(this, 'POST', `/api/scraps/worker/${id}`, {
-			wait: 'false',
-		});
-		return [ack as IDataObject];
+	const node = this.getNode();
+	const id = assertScrapId(node, scrapId);
+	const body = parseParameters(node, options.parameters);
+	const path = `/api/scraps/worker/${id}`;
+	const extras = {
+		body,
+		fullResponse: options.fullResponse,
+		timeout: options.wait ? LONG_RUN_TIMEOUT_MS : undefined,
+	};
+
+	const qs = options.wait ? {} : { wait: 'false' };
+	if (options.fullResponse || !options.wait) {
+		return [(await trawlApiRequest.call(this, 'POST', path, qs, extras)) as IDataObject];
 	}
 
-	const run = (await trawlApiRequest.call(
-		this,
-		'GET',
-		`/api/scraps/load/${id}`,
-		{},
-		LONG_RUN_TIMEOUT_MS,
-	)) as { result?: { data?: unknown } };
-	return dataToRows(run?.result?.data);
+	const run = (await trawlApiRequest.call(this, 'POST', path, qs, extras)) as {
+		result?: unknown;
+	};
+	// The worker route answers { result: [rows], ... }; anything else is no rows.
+	return Array.isArray(run?.result) ? toJsonRows(run.result) : [];
 }
 
 /**

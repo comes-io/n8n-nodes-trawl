@@ -41,10 +41,25 @@ Resource **Scrap**:
 | Operation | What it does | API route |
 | --- | --- | --- |
 | Get Many | Lists your scraps, with an optional text search. | `GET /api/scraps` |
-| Run | Runs a scrap. With **Wait for Result** on (default), the node waits for the run to finish and outputs one item per scraped row (a run can take a few minutes). With it off, the run is queued and the node outputs `{ status: "queued", scrapId }` at once. | `GET /api/scraps/load/:id` (wait) or `POST /api/scraps/worker/:id?wait=false` |
+| Run | Runs a scrap. With **Wait for Result** on (default), the node waits for the run to finish and outputs one item per scraped row (a run can take a few minutes). With it off, the run is queued and the node outputs `{ status: "queued", scrapId }` at once. **Parameters** (optional JSON, default `{}`) are sent with the run. **Output** is `Rows` (default) or `Full Response`. | `POST /api/scraps/worker/:id` (wait) or `POST /api/scraps/worker/:id?wait=false`, both with the Parameters as the body |
 | Get Latest Result | Outputs the rows of the scrap's last run, one item per row. It never starts a run and uses no run quota. | `GET /api/scraps/:id`, then `GET /api/historys/:runId` |
 
 Pick the scrap from a searchable list, or paste its ID (24 hex characters).
+
+### Parameters
+
+**Parameters** lets one scrap serve many inputs. Give a JSON object (or an expression that returns one). The API turns each top-level key into `TRAWL.<key>` inside the scrap, with or without the `TRAWL.` prefix, and the node sends it as is. `TRAWL.url` can never be overridden.
+
+```json
+{ "city": "Paris", "TRAWL.limit": 20 }
+```
+
+Invalid JSON, or a value that is not an object, fails the node with an error naming the field.
+
+### Output
+
+- **Rows** (default): one item per scraped row.
+- **Full Response**: one item per call, `{ statusCode, body }`, where `body` is the raw API JSON `{ type, message, data }`. It works like the HTTP Request node with "include status" on and "never error": an HTTP error status (for example a `429` when a run is already in progress) is output, not thrown, so the workflow can branch on `statusCode`. A network error or a timeout still fails the node. Full Response always outputs one item, so the zero-row case of Rows does not apply.
 
 **Get Latest Result** fails with a clear message when the scrap has never run, when a run is still in progress, when the last run failed, or when the stored data of the last run has aged out. A successful run with zero rows outputs nothing, and so does **Run** with zero rows: n8n ends the branch there, so for scheduled flows turn on the node setting **Always Output Data**. Turn on **Continue On Fail** to get the error as an item instead.
 

@@ -11,12 +11,20 @@ import { NodeApiError } from 'n8n-workflow';
 const DEFAULT_BASE_URL = 'https://api.trawl.me';
 
 /**
- * A run executes server-side and can take 30-250 s (browser navigation, anti-bot
- * escalation, AI fixes). Same ceiling as the Trawl CLI's LONG_RUN_TIMEOUT_MS.
+ * A run executes server-side within a 600 s dispatch budget. The client waits that
+ * budget plus 60 s, so a run near the cap never times out here first. Same value
+ * as the Trawl CLI's LONG_RUN_TIMEOUT_MS.
  */
-export const LONG_RUN_TIMEOUT_MS = 300_000;
+export const LONG_RUN_TIMEOUT_MS = 660_000;
 
 type TrawlContext = IExecuteFunctions | ILoadOptionsFunctions;
+
+interface RequestExtras {
+	timeout?: number;
+	body?: IDataObject;
+	/** Resolve with `{ statusCode, body }` and do not throw on an HTTP error status. */
+	fullResponse?: boolean;
+}
 
 /**
  * Calls the Trawl REST API with the "Trawl API" credential (Bearer API key) and
@@ -27,7 +35,7 @@ export async function trawlApiRequest(
 	method: IHttpRequestMethods,
 	path: string,
 	qs: IDataObject = {},
-	timeout?: number,
+	extras: RequestExtras = {},
 ): Promise<unknown> {
 	const credentials = await this.getCredentials('trawlApi');
 	const baseUrl = String(credentials.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -38,13 +46,23 @@ export async function trawlApiRequest(
 		qs,
 		json: true,
 	};
-	if (timeout) options.timeout = timeout;
+	if (extras.timeout) options.timeout = extras.timeout;
+	if (extras.body) options.body = extras.body;
+	if (extras.fullResponse) {
+		options.returnFullResponse = true;
+		options.ignoreHttpStatusErrors = true;
+	}
 
 	let response: unknown;
 	try {
 		response = await this.helpers.httpRequestWithAuthentication.call(this, 'trawlApi', options);
 	} catch (error) {
 		throw new NodeApiError(this.getNode(), error as JsonObject);
+	}
+
+	if (extras.fullResponse) {
+		const { statusCode, body } = response as { statusCode: number; body: unknown };
+		return { statusCode, body };
 	}
 
 	if (response !== null && typeof response === 'object' && 'data' in response) {
