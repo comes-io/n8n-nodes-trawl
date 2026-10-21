@@ -153,8 +153,8 @@ describe('Run', () => {
 		['an empty array', [], []],
 		['null', null, []],
 		['undefined', undefined, []],
-		['an object', { price: 1 }, []],
-		['a string', 'plain', []],
+		['an object', { price: 1 }, [{ price: 1 }]],
+		['a string', 'plain', [{ value: 'plain' }]],
 	])('never emits the envelope when result is %s', async (_label, result, expected) => {
 		const { json } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
 			envelope({ result, digest: null, scrap: { script: 'secret' } }),

@@ -48,10 +48,10 @@ Pick the scrap from a searchable list, or paste its ID (24 hex characters).
 
 ### Parameters
 
-**Parameters** lets one scrap serve many inputs. Give a JSON object (or an expression that returns one). The API turns each top-level key into `TRAWL.<key>` inside the scrap, with or without the `TRAWL.` prefix, and the node sends it as is. `TRAWL.url` can never be overridden.
+**Parameters** lets one scrap serve many inputs. Give a JSON object (or an expression that returns one). The keys must match the scrap's stored parameter keys exactly (normally `TRAWL.<name>`), and all of them are required. A mismatch fails the run with a 422. A scrap with no parameters ignores them. With **Wait for Result** off the body is not checked up front, so a wrong key fails the run later. `TRAWL.url` can never be overridden.
 
 ```json
-{ "city": "Paris", "TRAWL.limit": 20 }
+{ "TRAWL.city": "Paris", "TRAWL.limit": 20 }
 ```
 
 Invalid JSON, or a value that is not an object, fails the node with an error naming the field.

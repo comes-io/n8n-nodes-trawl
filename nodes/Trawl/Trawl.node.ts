@@ -121,7 +121,7 @@ export class Trawl implements INodeType {
 				default: '{}',
 				displayOptions: { show: { resource: ['scrap'], operation: ['run'] } },
 				description:
-					'JSON object sent with the run. Each top-level key becomes a TRAWL variable in the scrap, with or without the TRAWL. prefix. The scrap URL cannot be overridden.',
+					'JSON object sent with the run. Keys must match the scrap\'s stored parameter keys exactly (normally TRAWL.city, TRAWL.limit and so on), and all of them are required. A mismatch fails the run with a 422. A scrap with no parameters ignores them. With Wait for Result off the body is not checked up front, so a wrong key fails the run later.',
 			},
 			{
 				displayName: 'Output',
