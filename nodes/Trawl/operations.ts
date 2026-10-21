@@ -133,9 +133,10 @@ export async function runScrap(
 	}
 
 	const run = (await trawlApiRequest.call(this, 'POST', path, qs, extras)) as {
-		result?: { data?: unknown };
+		result?: unknown;
 	};
-	return dataToRows(run?.result?.data);
+	// The worker route answers { result: [rows], ... }; anything else is no rows.
+	return Array.isArray(run?.result) ? toJsonRows(run.result) : [];
 }
 
 /**

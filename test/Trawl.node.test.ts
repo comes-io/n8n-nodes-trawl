@@ -136,7 +136,7 @@ describe('Get Many limit above the page cap', () => {
 describe('Run', () => {
 	it('waits by default: POST /api/scraps/worker/:id with the long timeout, one item per row', async () => {
 		const { json, calls } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
-			envelope({ result: { type: 'success', data: [{ price: 1 }, 'plain'] }, digest: null }),
+			envelope({ result: [{ price: 1 }, 'plain'], digest: null }),
 		]);
 		expect(calls[0].options).toMatchObject({
 			method: 'POST',
@@ -150,15 +150,46 @@ describe('Run', () => {
 	});
 
 	it.each([
+		['an empty array', [], []],
 		['null', null, []],
 		['undefined', undefined, []],
-		['an object', { price: 1 }, [{ price: 1 }]],
-		['a string', 'plain', [{ value: 'plain' }]],
-	])('never emits the envelope when data is %s', async (_label, data, expected) => {
+		['an object', { price: 1 }, []],
+		['a string', 'plain', []],
+	])('never emits the envelope when result is %s', async (_label, result, expected) => {
 		const { json } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
-			envelope({ result: { type: 'success', data }, digest: null, scrap: { script: 'secret' } }),
+			envelope({ result, digest: null, scrap: { script: 'secret' } }),
 		]);
 		expect(json).toEqual(expected);
+	});
+
+	const realBody = {
+		type: 'success',
+		message: 'scrap loaded',
+		data: {
+			result: [
+				{
+					kind: 'site',
+					hotel: 'Example Hotel',
+					site: 'Example Site',
+					price: 96,
+					currency: 'EUR',
+					checkin: '2026-09-20',
+				},
+			],
+		},
+	};
+
+	it('Rows outputs one item per row of a real worker response, fields unchanged', async () => {
+		const { json } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [realBody]);
+		expect(json).toEqual(realBody.data.result);
+	});
+
+	it('Full Response outputs the whole real worker JSON as the body', async () => {
+		const { json } = await execute(
+			{ operation: 'run', scrapId: SCRAP_ID, output: 'fullResponse' },
+			[{ statusCode: 200, headers: {}, body: realBody }],
+		);
+		expect(json).toEqual([{ statusCode: 200, body: realBody }]);
 	});
 
 	it('without waiting: POST /api/scraps/worker/:id?wait=false and outputs the queued ack', async () => {
@@ -181,7 +212,7 @@ describe('Run', () => {
 		for (const waitForResult of [true, false]) {
 			const { calls } = await execute(
 				{ operation: 'run', scrapId: SCRAP_ID, waitForResult, parameters },
-				[envelope({ result: { data: [] } })],
+				[envelope({ result: [] })],
 			);
 			expect(calls[0].options.body).toEqual(parameters);
 			expect(calls[0].options.qs).toEqual(waitForResult ? {} : { wait: 'false' });
@@ -191,7 +222,7 @@ describe('Run', () => {
 	it('parses a JSON string of parameters', async () => {
 		const { calls } = await execute(
 			{ operation: 'run', scrapId: SCRAP_ID, parameters: '{"url":"x","TRAWL.n":2}' },
-			[envelope({ result: { data: [] } })],
+			[envelope({ result: [] })],
 		);
 		expect(calls[0].options.body).toEqual({ url: 'x', 'TRAWL.n': 2 });
 	});
