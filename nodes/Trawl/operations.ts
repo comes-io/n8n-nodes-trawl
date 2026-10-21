@@ -88,7 +88,7 @@ export async function listScraps(
 
 /**
  * Per-call parameters: an object, or a string parsed as JSON (an empty string is
- * `{}`). Sent as the request body as given; the API maps each key to `TRAWL.<key>`.
+ * `{}`). Sent as the request body as given; the API requires the scrap's stored keys exactly (normally `TRAWL.<name>`).
  */
 function parseParameters(node: INode, raw: unknown): IDataObject {
 	let value = raw;
@@ -135,8 +135,9 @@ export async function runScrap(
 	const run = (await trawlApiRequest.call(this, 'POST', path, qs, extras)) as {
 		result?: unknown;
 	};
-	// The worker route answers { result: [rows], ... }; anything else is no rows.
-	return Array.isArray(run?.result) ? toJsonRows(run.result) : [];
+	// The worker route answers { result: ..., ... }: an array is one row per entry, a lone
+	// value is one row, a missing result is no rows. The envelope itself is never a row.
+	return dataToRows(run?.result);
 }
 
 /**
