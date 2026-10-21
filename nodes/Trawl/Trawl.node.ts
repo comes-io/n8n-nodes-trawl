@@ -115,6 +115,35 @@ export class Trawl implements INodeType {
 					'Whether to wait for the run to finish and output its rows (can take a few minutes). Off: the run is queued and the node outputs at once.',
 			},
 			{
+				displayName: 'Parameters',
+				name: 'parameters',
+				type: 'json',
+				default: '{}',
+				displayOptions: { show: { resource: ['scrap'], operation: ['run'] } },
+				description:
+					'JSON object sent with the run. Each top-level key becomes a TRAWL variable in the scrap, with or without the TRAWL. prefix. The scrap URL cannot be overridden.',
+			},
+			{
+				displayName: 'Output',
+				name: 'output',
+				type: 'options',
+				default: 'rows',
+				displayOptions: { show: { resource: ['scrap'], operation: ['run'] } },
+				options: [
+					{
+						name: 'Rows',
+						value: 'rows',
+						description: 'One item per scraped row',
+					},
+					{
+						name: 'Full Response',
+						value: 'fullResponse',
+						description:
+							'One item per call with the HTTP status code and the raw API JSON, even on an error status',
+					},
+				],
+			},
+			{
 				displayName: 'Return All',
 				name: 'returnAll',
 				type: 'boolean',
@@ -169,7 +198,11 @@ export class Trawl implements INodeType {
 					const scrapId = this.getNodeParameter('scrapId', i, '', { extractValue: true }) as string;
 					if (operation === 'run') {
 						const wait = this.getNodeParameter('waitForResult', i, true) as boolean;
-						rows = await runScrap.call(this, scrapId, wait);
+						rows = await runScrap.call(this, scrapId, {
+							wait,
+							parameters: this.getNodeParameter('parameters', i, '{}'),
+							fullResponse: this.getNodeParameter('output', i, 'rows') === 'fullResponse',
+						});
 					} else if (operation === 'getLatestResult') {
 						rows = await getLatestResult.call(this, scrapId);
 					} else {

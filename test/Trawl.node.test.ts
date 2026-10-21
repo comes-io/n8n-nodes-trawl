@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { TrawlApi } from '../credentials/TrawlApi.credentials';
 import { Trawl } from '../nodes/Trawl/Trawl.node';
 import { searchScraps } from '../nodes/Trawl/operations';
+import { LONG_RUN_TIMEOUT_MS } from '../nodes/Trawl/transport';
 
 const SCRAP_ID = '6650c3f0a1b2c3d4e5f60718';
 const RUN_ID = '6650c3f0a1b2c3d4e5f60799';
@@ -133,15 +134,18 @@ describe('Get Many limit above the page cap', () => {
 });
 
 describe('Run', () => {
-	it('waits by default: GET /api/scraps/load/:id with the long timeout, one item per row', async () => {
+	it('waits by default: POST /api/scraps/worker/:id with the long timeout, one item per row', async () => {
 		const { json, calls } = await execute({ operation: 'run', scrapId: SCRAP_ID }, [
 			envelope({ result: { type: 'success', data: [{ price: 1 }, 'plain'] }, digest: null }),
 		]);
 		expect(calls[0].options).toMatchObject({
-			method: 'GET',
-			url: `https://api.example.test/api/scraps/load/${SCRAP_ID}`,
-			timeout: 300_000,
+			method: 'POST',
+			url: `https://api.example.test/api/scraps/worker/${SCRAP_ID}`,
+			qs: {},
+			body: {},
+			timeout: 660_000,
 		});
+		expect(calls[0].options.returnFullResponse).toBeUndefined();
 		expect(json).toEqual([{ price: 1 }, { value: 'plain' }]);
 	});
 
@@ -166,9 +170,79 @@ describe('Run', () => {
 			method: 'POST',
 			url: `https://api.example.test/api/scraps/worker/${SCRAP_ID}`,
 			qs: { wait: 'false' },
+			body: {},
 		});
 		expect(calls[0].options.timeout).toBeUndefined();
 		expect(json).toEqual([{ status: 'queued', scrapId: SCRAP_ID }]);
+	});
+
+	it('sends the parameters as the body as given, bare and prefixed keys, with and without waiting', async () => {
+		const parameters = { city: 'Paris', 'TRAWL.limit': 5 };
+		for (const waitForResult of [true, false]) {
+			const { calls } = await execute(
+				{ operation: 'run', scrapId: SCRAP_ID, waitForResult, parameters },
+				[envelope({ result: { data: [] } })],
+			);
+			expect(calls[0].options.body).toEqual(parameters);
+			expect(calls[0].options.qs).toEqual(waitForResult ? {} : { wait: 'false' });
+		}
+	});
+
+	it('parses a JSON string of parameters', async () => {
+		const { calls } = await execute(
+			{ operation: 'run', scrapId: SCRAP_ID, parameters: '{"url":"x","TRAWL.n":2}' },
+			[envelope({ result: { data: [] } })],
+		);
+		expect(calls[0].options.body).toEqual({ url: 'x', 'TRAWL.n': 2 });
+	});
+
+	it.each([['{not json'], ['[1]'], ['3']])(
+		'rejects invalid parameters %s before any request',
+		async (parameters) => {
+			const { context, calls } = makeContext(
+				{ resource: 'scrap', operation: 'run', scrapId: SCRAP_ID, parameters },
+				[],
+			);
+			const promise = new Trawl().execute.call(context as unknown as IExecuteFunctions);
+			await expect(promise).rejects.toThrow(NodeOperationError);
+			await expect(promise).rejects.toThrow(/"Parameters" field/);
+			expect(calls).toHaveLength(0);
+		},
+	);
+
+	it('Full Response on a 200: one { statusCode, body } item with the raw envelope', async () => {
+		const body = envelope([{ price: 1 }]);
+		const { json, calls } = await execute(
+			{ operation: 'run', scrapId: SCRAP_ID, output: 'fullResponse' },
+			[{ statusCode: 200, headers: { a: 'b' }, body }],
+		);
+		expect(calls[0].options).toMatchObject({
+			returnFullResponse: true,
+			ignoreHttpStatusErrors: true,
+			timeout: 660_000,
+		});
+		expect(json).toEqual([{ statusCode: 200, body }]);
+	});
+
+	it('Full Response passes a 429 through without throwing', async () => {
+		const body = { description: 'A run is already in progress for this scrap' };
+		const { json } = await execute(
+			{ operation: 'run', scrapId: SCRAP_ID, output: 'fullResponse', waitForResult: false },
+			[{ statusCode: 429, headers: {}, body }],
+		);
+		expect(json).toEqual([{ statusCode: 429, body }]);
+	});
+
+	it('Full Response still throws on a network error', async () => {
+		await expect(
+			execute({ operation: 'run', scrapId: SCRAP_ID, output: 'fullResponse' }, [
+				Object.assign(new Error('timeout of 660000ms exceeded'), { code: 'ECONNABORTED' }),
+			]),
+		).rejects.toThrow(NodeApiError);
+	});
+
+	it('waits up to the 600 s server budget plus 60 s', () => {
+		expect(LONG_RUN_TIMEOUT_MS).toBe(660_000);
 	});
 
 	it('refuses an ID that is not an ObjectId before any request', async () => {
