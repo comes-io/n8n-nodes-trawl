@@ -26,7 +26,7 @@ function makeContext(
 		getNode: () => ({
 			id: '1',
 			name: 'Trawl',
-			type: 'n8n-nodes-trawl.trawl',
+			type: '@trawlme/n8n-nodes-trawl.trawl',
 			typeVersion: 1,
 			position: [0, 0],
 			parameters: {},

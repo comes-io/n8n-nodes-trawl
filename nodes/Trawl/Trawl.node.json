@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-trawl.trawl",
+	"node": "@trawlme/n8n-nodes-trawl.trawl",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Data & Storage", "Development"],

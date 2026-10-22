@@ -1,7 +1,7 @@
 name: Release
 
 # Every merge to main publishes a CANDIDATE on the npm `next` dist-tag.
-# `latest` (bare `npm i n8n-nodes-trawl`, what n8n installs) does NOT move on
+# `latest` (bare `npm i @trawlme/n8n-nodes-trawl`, what n8n installs) does NOT move on
 # merge: promote it with promote.yml after QA. Same model as trawl_skills and
 # trawl_cli.
 #
@@ -117,7 +117,7 @@ jobs:
         # the step instead of guessing.
         run: |
           set +e
-          output="$(npm view "n8n-nodes-trawl@$VERSION" version 2>&1)"
+          output="$(npm view "@trawlme/n8n-nodes-trawl@$VERSION" version 2>&1)"
           status=$?
           set -e
           if [ "$status" -eq 0 ]; then
