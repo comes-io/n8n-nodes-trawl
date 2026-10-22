@@ -1,0 +1,59 @@
+name: Dependabot auto-merge
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    concurrency:
+      group: dependabot-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+      - name: Approve patch and minor updates
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge patch and minor updates once CI is green
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        # No branch protection on this plan, so auto-merge would not wait for CI.
+        # Wait for every other check on the head sha; merge only if all passed.
+        run: |
+          ok=0
+          for _ in $(seq 1 120); do
+            r=$(gh api "repos/$GH_REPO/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[] | select(.name != "auto-merge")] | "\(length) \(map(select(.status != "completed")) | length) \(map(select(.conclusion | IN("success","skipped","neutral") | not)) | length)"') || { sleep 20; continue; }
+            set -- $r
+            if [ "$1" -gt 0 ] && [ "$2" -eq 0 ]; then
+              [ "$3" -eq 0 ] || { echo "CI failed, not merging"; exit 1; }
+              # same all-green answer twice in a row, so a workflow that registers late is not missed
+              ok=$((ok + 1))
+              if [ "$ok" -ge 2 ]; then
+                gh pr merge --squash --match-head-commit "$SHA" "$PR_URL"
+                exit 0
+              fi
+            else
+              ok=0
+            fi
+            sleep 20
+          done
+          echo "CI did not finish in time, not merging"
+          exit 1
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
