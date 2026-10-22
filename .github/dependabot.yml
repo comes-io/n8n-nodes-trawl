@@ -6,3 +6,9 @@ updates:
     interval: daily
     time: "04:00"
   open-pull-requests-limit: 10
+  # The n8n-node toolchain pins these: TypeScript 7 and ESLint 10 break the build (#7, #5).
+  ignore:
+    - dependency-name: typescript
+      update-types: ["version-update:semver-major"]
+    - dependency-name: eslint
+      update-types: ["version-update:semver-major"]
