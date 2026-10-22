@@ -1,5 +1,5 @@
 {
-	"name": "n8n-nodes-trawl",
+	"name": "@trawlme/n8n-nodes-trawl",
 	"version": "0.1.0",
 	"description": "n8n community node for Trawl: list your scraps, run them and get their latest results.",
 	"license": "MIT",
@@ -21,6 +21,9 @@
 	},
 	"bugs": {
 		"url": "https://github.com/comes-io/n8n-nodes-trawl/issues"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"scripts": {
 		"build": "n8n-node build",

@@ -1,4 +1,4 @@
-# n8n-nodes-trawl
+# @trawlme/n8n-nodes-trawl
 
 An [n8n](https://n8n.io/) community node for [Trawl](https://trawl.me/?utm_source=n8n&utm_medium=integration): run your web scraps and use their results in any workflow.
 
@@ -8,7 +8,7 @@ The node can also be used as a tool by the n8n AI Agent.
 
 ## Installation
 
-On self-hosted n8n, open **Settings > Community Nodes**, select **Install**, enter `n8n-nodes-trawl` and confirm. On n8n Cloud, community nodes can be installed only once n8n has verified the node.
+On self-hosted n8n, open **Settings > Community Nodes**, select **Install**, enter `@trawlme/n8n-nodes-trawl` and confirm. On n8n Cloud, community nodes can be installed only once n8n has verified the node.
 
 See the n8n guide: [Install community nodes](https://docs.n8n.io/integrations/community-nodes/installation/).
 
@@ -93,7 +93,7 @@ Import this skeleton with **Import from clipboard**, then select your credential
         "waitForResult": true
       },
       "name": "Trawl",
-      "type": "n8n-nodes-trawl.trawl",
+      "type": "@trawlme/n8n-nodes-trawl.trawl",
       "typeVersion": 1,
       "position": [220, 0]
     }
