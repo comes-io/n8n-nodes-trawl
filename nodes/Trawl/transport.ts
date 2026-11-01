@@ -11,11 +11,12 @@ import { NodeApiError } from 'n8n-workflow';
 const DEFAULT_BASE_URL = 'https://api.trawl.me';
 
 /**
- * A run executes server-side within a 600 s dispatch budget. The client waits that
- * budget plus 60 s, so a run near the cap never times out here first. Same value
- * as the Trawl CLI's LONG_RUN_TIMEOUT_MS.
+ * A run can use two 600 s dispatch budgets server-side: one waiting for a worker,
+ * then one for the run (the clock restarts when its script starts). The client waits
+ * both plus 60 s for the answer to travel back, so a run near the cap never times out
+ * here first. Same value as the Trawl CLI's LONG_RUN_TIMEOUT_MS.
  */
-export const LONG_RUN_TIMEOUT_MS = 660_000;
+export const LONG_RUN_TIMEOUT_MS = 1_260_000;
 
 type TrawlContext = IExecuteFunctions | ILoadOptionsFunctions;
 
