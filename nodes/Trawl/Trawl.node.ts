@@ -112,7 +112,7 @@ export class Trawl implements INodeType {
 				default: true,
 				displayOptions: { show: { resource: ['scrap'], operation: ['run'] } },
 				description:
-					'Whether to wait for the run to finish and output its rows (can take a few minutes). Off: the run is queued and the node outputs at once.',
+					'Whether to wait for the run to finish and output its rows (can take up to about 20 minutes). Off: the run is queued and the node outputs at once.',
 			},
 			{
 				displayName: 'Parameters',
