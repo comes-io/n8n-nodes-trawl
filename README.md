@@ -41,7 +41,7 @@ Resource **Scrap**:
 | Operation | What it does | API route |
 | --- | --- | --- |
 | Get Many | Lists your scraps, with an optional text search. | `GET /api/scraps` |
-| Run | Runs a scrap. With **Wait for Result** on (default), the node waits for the run to finish and outputs one item per scraped row (a run can take a few minutes). With it off, the run is queued and the node outputs `{ status: "queued", scrapId }` at once. **Parameters** (optional JSON, default `{}`) are sent with the run. **Output** is `Rows` (default) or `Full Response`. | `POST /api/scraps/worker/:id` (wait) or `POST /api/scraps/worker/:id?wait=false`, both with the Parameters as the body |
+| Run | Runs a scrap. With **Wait for Result** on (default), the node waits for the run to finish and outputs one item per scraped row (a run can take up to about 23 minutes). With it off, the run is queued and the node outputs `{ status: "queued", scrapId }` at once. **Parameters** (optional JSON, default `{}`) are sent with the run. **Output** is `Rows` (default) or `Full Response`. | `POST /api/scraps/worker/:id` (wait) or `POST /api/scraps/worker/:id?wait=false`, both with the Parameters as the body |
 | Get Latest Result | Outputs the rows of the scrap's last run, one item per row. It never starts a run and uses no run quota. | `GET /api/scraps/:id`, then `GET /api/historys/:runId` |
 
 Pick the scrap from a searchable list, or paste its ID (24 hex characters).
