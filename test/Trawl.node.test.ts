@@ -143,7 +143,7 @@ describe('Run', () => {
 			url: `https://api.example.test/api/scraps/worker/${SCRAP_ID}`,
 			qs: {},
 			body: {},
-			timeout: 1_260_000,
+			timeout: 1_380_000,
 		});
 		expect(calls[0].options.returnFullResponse).toBeUndefined();
 		expect(json).toEqual([{ price: 1 }, { value: 'plain' }]);
@@ -250,7 +250,7 @@ describe('Run', () => {
 		expect(calls[0].options).toMatchObject({
 			returnFullResponse: true,
 			ignoreHttpStatusErrors: true,
-			timeout: 1_260_000,
+			timeout: 1_380_000,
 		});
 		expect(json).toEqual([{ statusCode: 200, body }]);
 	});
@@ -267,13 +267,13 @@ describe('Run', () => {
 	it('Full Response still throws on a network error', async () => {
 		await expect(
 			execute({ operation: 'run', scrapId: SCRAP_ID, output: 'fullResponse' }, [
-				Object.assign(new Error('timeout of 1260000ms exceeded'), { code: 'ECONNABORTED' }),
+				Object.assign(new Error('timeout of 1380000ms exceeded'), { code: 'ECONNABORTED' }),
 			]),
 		).rejects.toThrow(NodeApiError);
 	});
 
-	it('waits up to two 600 s server budgets plus 60 s', () => {
-		expect(LONG_RUN_TIMEOUT_MS).toBe(1_260_000);
+	it('waits 600 s worker + 600 s run + 180 s digest, 60 s past the API socket', () => {
+		expect(LONG_RUN_TIMEOUT_MS).toBe(1_380_000);
 	});
 
 	it('refuses an ID that is not an ObjectId before any request', async () => {
